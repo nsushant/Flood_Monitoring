@@ -8,6 +8,29 @@ import pandas as pd
 import datetime 
 import numpy as np
 from tabulate import tabulate
+import folium 
+from IPython.display import display
+
+def get_coords():
+    url_weather_stations = "https://environment.data.gov.uk/flood-monitoring/id/stations"
+    response = requests.get(url_weather_stations)
+    json_response_items = response.json()["items"]
+    
+    station_refs = np.array([])
+    lats = np.array([])
+    longs = np.array([])
+    
+    for i in json_response_items:
+        try:
+            lats = np.append(lats,float(i["lat"]))
+            longs = np.append(longs,float(i["long"]))
+            station_refs = np.append(station_refs,i["notation"])
+        except:
+            continue 
+            
+            
+    return lats,longs,station_refs 
+
 
 
 def list_stations(filter_names=None,values=None):
@@ -129,44 +152,65 @@ def create_plot_from_data(data,param,unit,axt=None):
     return
     
     
-    
-print("This app will help you both find a station and plot its recorded values over the last 24 hours.")
-print("If a station reference is alrady known, please enter it below to see plots")
-print("If you would like help finding your station reference, please leave the box below blanck and press enter to continue")    
-
+print("\n")
+print("This app will help you find a station and plot its recorded values over the last 24 hours.")
+print("If a station reference is alrady known, please enter it below in the [Enter Station Reference] input field below to see plots of all available params")
+print("\n")   
+print("If you would like to find your station reference using filters, please leave the Enter Station Reference input field empty and press enter to continue") 
+print("\n")   
+print("To instead view a map with station references marked and exit for now please type out MAP in the Enter Station Reference input field below")
+print("\n") 
     
 in_station_ref = input("Enter Station Reference, If unknown leave blank and press enter:")
     
-
+    
 if len(in_station_ref) != 0: 
     
-    station_reference = str(in_station_ref)
-    
-    available_params,param_units = list_parameters(station_reference)
-    
-    print(available_params)
-    
-    if len(available_params)>1:
+    if in_station_ref == "MAP": 
+        lats_map,longs_map,station_refs_map  = get_coords()
         
-        fig, ax1 = plt.subplots(len(available_params),1,figsize=(20,5*len(available_params)))
-        fig.suptitle(f"Station {station_reference}", fontsize=20)
+        Cambridge_coords = (52.1951, 0.1313)
+        Map_view = folium.Map(location=Cambridge_coords, zoom_start=12)
 
-    for i in range(len(available_params)):
-    
-        df = get_data_for_station(station_reference,available_params[i])
+        for l in range(len(lats_map)):     
+
+            folium.CircleMarker(
+            [float(lats_map[l]), float(longs_map[l])],
+            radius=2,
+            fill=True,
+            popup=folium.Popup(f"Station Ref. {station_refs_map[l]}"),
+            ).add_to(Map_view)
+
+        Map_view.show_in_browser()
         
-        if type(df) == type(None):
-            
-            print(f"skipping param {available_params[i]} because no data was found")
-            continue
-        
-        if len(available_params)>1:    
-            create_plot_from_data(df,available_params[i],param_units[i],axt=ax1[i])
-        else:
-            create_plot_from_data(df,available_params[i],param_units[i])
-            plt.suptitle(f"Station {station_reference}")
-    
-    plt.show()
+    else: 
+        station_reference = str(in_station_ref)
+
+        available_params,param_units = list_parameters(station_reference)
+
+        print(available_params)
+
+        if len(available_params)>1:
+
+            fig, ax1 = plt.subplots(len(available_params),1,figsize=(20,5*len(available_params)))
+            fig.suptitle(f"Station {station_reference}", fontsize=20)
+
+        for i in range(len(available_params)):
+
+            df = get_data_for_station(station_reference,available_params[i])
+
+            if type(df) == type(None):
+
+                print(f"skipping param {available_params[i]} because no data was found")
+                continue
+
+            if len(available_params)>1:    
+                create_plot_from_data(df,available_params[i],param_units[i],axt=ax1[i])
+            else:
+                create_plot_from_data(df,available_params[i],param_units[i])
+                plt.suptitle(f"Station {station_reference}")
+
+        plt.show()
     
 if len(in_station_ref) == 0: 
     
